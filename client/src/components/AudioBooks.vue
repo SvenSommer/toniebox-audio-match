@@ -1,95 +1,124 @@
 <template>
   <main role="main">
-    <div class="album py-5 bg-light">
-      <div class="container">
-        <h2 class="mb-4">Download a New Audiobook</h2>
-        <form @submit.prevent="downloadAudiobook">
-          <div class="form-group">
-            <label for="url">YouTube URL</label>
-            <input
-              type="text"
-              id="url"
-              class="form-control"
-              v-model="newAudiobook.url"
-              placeholder="Enter YouTube URL"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="title">Title</label>
-            <input
-              type="text"
-              id="title"
-              class="form-control"
-              v-model="newAudiobook.title"
-              placeholder="Enter Title"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="artist">Artist</label>
-            <input
-              type="text"
-              id="artist"
-              class="form-control"
-              v-model="newAudiobook.artist"
-              placeholder="Enter Artist"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="album">Album</label>
-            <input
-              type="text"
-              id="album"
-              class="form-control"
-              v-model="newAudiobook.album"
-              placeholder="Enter Album"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="cover">Cover Image</label>
-            <input
-              type="file"
-              id="cover"
-              class="form-control"
-              @change="onFileChange"
-            />
-          </div>
-          <button type="submit" class="btn btn-primary">Download Audiobook</button>
-        </form>
+    <div class="container my-5">
+      <!-- Refresh Library Button -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="text-primary">Audiobook Manager</h1>
+        <button @click="refreshLibrary" class="btn btn-outline-secondary">Refresh Library</button>
+      </div>
 
-        <hr />
-
-        <h2 class="mb-4">Available Audiobooks</h2>
-        <div class="row">
-          <div v-for="audiobook in audiobooks" :key="audiobook.id" class="col-md-3">
-            <div class="card mb-4 shadow-sm">
-              <div v-if="audiobook.cover_uri !== null">
-                <img :src="'./assets/covers/' + audiobook.cover_uri"
-                     class="card-img-top"
-                     :alt="audiobook.title">
+      <!-- Section: Download New Audiobook -->
+      <div class="card shadow-sm mb-5">
+        <div class="card-header bg-primary text-white">
+          <h2 class="h5 mb-0">Download a New Audiobook</h2>
+        </div>
+        <div class="card-body">
+          <form @submit.prevent="downloadAudiobook">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label for="url" class="form-label">YouTube URL</label>
+                <input
+                  type="text"
+                  id="url"
+                  class="form-control"
+                  v-model="newAudiobook.url"
+                  placeholder="Enter YouTube URL"
+                  required
+                />
               </div>
-              <div v-else>
-                <svg class="bd-placeholder-img card-img-top" width="100%" height="253"
-                     xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"
-                     focusable="false" role="img" aria-label="Placeholder: Thumbnail">
-                  <title>no cover</title>
-                  <rect width="100%" height="100%" fill="#55595c"/>
-                  <text x="50%" y="50%" fill="#eceeef" dy=".3em">no cover</text>
+              <div class="col-md-6 mb-3">
+                <label for="title" class="form-label">Title</label>
+                <input
+                  type="text"
+                  id="title"
+                  class="form-control"
+                  v-model="newAudiobook.title"
+                  placeholder="Enter Title"
+                  required
+                />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="artist" class="form-label">Artist</label>
+                <input
+                  type="text"
+                  id="artist"
+                  class="form-control"
+                  v-model="newAudiobook.artist"
+                  placeholder="Enter Artist"
+                  required
+                />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="album" class="form-label">Album</label>
+                <input
+                  type="text"
+                  id="album"
+                  class="form-control"
+                  v-model="newAudiobook.album"
+                  placeholder="Enter Album"
+                  required
+                />
+              </div>
+              <div class="col-md-12 mb-3">
+                <label for="cover" class="form-label">Cover Image</label>
+                <input
+                  type="file"
+                  id="cover"
+                  class="form-control"
+                  @change="onFileChange"
+                />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Download Audiobook</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Section: Available Audiobooks -->
+      <div>
+        <h2 class="h4 text-secondary mb-4">Available Audiobooks</h2>
+        <div class="row">
+          <div v-for="audiobook in audiobooks" :key="audiobook.id" class="col-md-4 col-lg-3 mb-4">
+            <div class="card shadow-sm h-100">
+              <div class="position-relative">
+                <!-- Display cover if available -->
+                <img
+                  v-if="audiobook.cover_uri !== null"
+                  :src="'./assets/covers/' + audiobook.cover_uri"
+                  class="card-img-top"
+                  :alt="audiobook.title"
+                />
+                <!-- Fallback for missing cover -->
+                <svg
+                  v-else
+                  class="bd-placeholder-img card-img-top"
+                  width="100%"
+                  height="200"
+                  xmlns="http://www.w3.org/2000/svg"
+                  preserveAspectRatio="xMidYMid slice"
+                  focusable="false"
+                  role="img"
+                  aria-label="Placeholder: Thumbnail"
+                >
+                  <title>No Cover</title>
+                  <rect width="100%" height="100%" fill="#e9ecef" />
+                  <text x="50%" y="50%" fill="#adb5bd" dy=".3em">No Cover</text>
                 </svg>
               </div>
               <div class="card-body">
-                <h5 class="card-title">
-                  {{ audiobook.title }}
-                  <div v-if="audiobook.disc !== null"> ({{ audiobook.disc }})</div>
-                </h5>
-                <h6 class="card-subtitle mb-2 text-muted">{{ audiobook.artist }}</h6>
+                <h5 class="card-title">{{ audiobook.title }}</h5>
+                <p class="card-text text-muted mb-0">{{ audiobook.artist }}</p>
+                <p class="card-text">
+                  <small class="text-muted">{{ audiobook.album }}</small>
+                </p>
               </div>
-              <Tonies :tonies="creativetonies"
-                      :audiobookID="audiobook.id"
-                      @onchange="uploadAlbumToTonie"/>
+              <div class="card-footer bg-transparent border-0">
+                <Tonies
+                  :tonies="creativetonies"
+                  :audiobookID="audiobook.id"
+                  @onchange="uploadAlbumToTonie"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -99,8 +128,8 @@
 </template>
 
 <script>
-import axios from 'axios';
-import Tonies from './Tonies.vue';
+import axios from "axios";
+import Tonies from "./Tonies.vue";
 
 const backendUrl = `${process.env.VUE_APP_BACKEND_SCHEME}://${process.env.VUE_APP_BACKEND_HOST}:${process.env.VUE_APP_BACKEND_PORT}`;
 
@@ -111,83 +140,62 @@ export default {
       audiobooks: [],
       creativetonies: [],
       newAudiobook: {
-        url: '',
-        title: '',
-        artist: '',
-        album: '',
+        url: "",
+        title: "",
+        artist: "",
+        album: "",
         coverFile: null,
       },
     };
   },
   methods: {
     getAudiobooks() {
-      const path = `${backendUrl}/audiobooks`;
-      axios.get(path)
-        .then((res) => {
-          this.audiobooks = res.data.audiobooks;
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+      axios.get(`${backendUrl}/audiobooks`).then((res) => {
+        this.audiobooks = res.data.audiobooks;
+      }).catch((err) => console.error(err));
+    },
+    refreshLibrary() {
+      axios.post(`${backendUrl}/refresh-library`).then(() => {
+        console.log("Library refresh triggered.");
+        setTimeout(() => this.getAudiobooks(), 3000);
+      }).catch((err) => console.error(err));
     },
     getCreativeTonies() {
-      const path = `${backendUrl}/creativetonies`;
-      axios.get(path)
-        .then((res) => {
-          this.creativetonies = res.data.creativetonies;
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+      axios.get(`${backendUrl}/creativetonies`).then((res) => {
+        this.creativetonies = res.data.creativetonies;
+      }).catch((err) => console.error(err));
     },
     uploadAlbumToTonie(tonieID, audiobookID) {
-      const path = `${backendUrl}/upload`;
-      axios.post(path, { tonie_id: tonieID, audiobook_id: audiobookID })
-        .then((res) => {
-          console.log('Upload id: ' + res.data.upload_id);
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+      axios.post(`${backendUrl}/upload`, { tonie_id: tonieID, audiobook_id: audiobookID })
+        .then((res) => console.log("Upload ID:", res.data.upload_id))
+        .catch((err) => console.error(err));
     },
     onFileChange(event) {
       this.newAudiobook.coverFile = event.target.files[0];
     },
     async uploadCover() {
-      if (this.newAudiobook.coverFile) {
-        const formData = new FormData();
-        formData.append('cover', this.newAudiobook.coverFile);
-        const path = `${backendUrl}/upload-cover`;
-
-        try {
-          const res = await axios.post(path, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-          return res.data.cover_path;
-        } catch (error) {
-          console.error('Error uploading cover:', error);
-        }
+      if (!this.newAudiobook.coverFile) return null;
+      const formData = new FormData();
+      formData.append("cover", this.newAudiobook.coverFile);
+      try {
+        const res = await axios.post(`${backendUrl}/upload-cover`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        return res.data.cover_path;
+      } catch (err) {
+        console.error("Error uploading cover:", err);
+        return null;
       }
-      return null;
     },
     async downloadAudiobook() {
       const coverPath = await this.uploadCover();
-      const path = `${backendUrl}/download-audiobook`;
-
-      axios.post(path, {
-        url: this.newAudiobook.url,
-        title: this.newAudiobook.title,
-        artist: this.newAudiobook.artist,
-        album: this.newAudiobook.album,
+      axios.post(`${backendUrl}/download-audiobook`, {
+        ...this.newAudiobook,
         cover_path: coverPath,
-      })
-        .then((res) => {
-          console.log('Audiobook downloaded:', res.data);
-          this.getAudiobooks(); // Refresh audiobooks
-        })
-        .catch((error) => {
-          console.error('Error downloading audiobook:', error);
-        });
+      }).then(() => {
+        console.log("Audiobook downloaded.");
+        this.getAudiobooks();
+      }).catch((err) => console.error(err));
     },
   },
   created() {

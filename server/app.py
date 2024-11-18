@@ -3,28 +3,25 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Thread
+from queue import Queue
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import localstorage.client
-
-# configuration
 from models.audio import AudioBook
 from models.tonie import Tonie
 from toniecloud.client import TonieCloud
 
 import yt_dlp
-from mutagen.easyid3 import EasyID3
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC
 from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC
+from time import sleep
+import yt_dlp
 from pathlib import Path
-
-import eyed3
-from eyed3.id3.frames import ImageFrame
 from flask import Flask, jsonify, request
 from pathlib import Path
-
 from re import sub
 
 logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
@@ -32,54 +29,96 @@ logger = logging.getLogger(__name__)
 
 DEBUG = True
 
-# instantiate the app
 app = Flask(__name__)
 app.config.from_object(__name__)
-
-# enable CORS
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 tonie_cloud_api = TonieCloud(os.environ.get("TONIE_AUDIO_MATCH_USER"), os.environ.get("TONIE_AUDIO_MATCH_PASS"))
 
+# Task queues
+upload_queue = Queue()
+transcoding_status = {}
 
-def audiobooks():
-    audiobooks = localstorage.client.audiobooks(Path("assets/audiobooks"))
-    logger.debug("Discovered audiobook paths: %s", audiobooks)
-    for album in audiobooks:
-        audiobook = AudioBook.from_path(album)
-        if audiobook:
-            yield audiobook
+# Media library
+media_library = {"audiobooks": []}
+creative_tonies = []
 
+### Utility Functions
+def refresh_media_library():
+    """Refresh the media library in a background thread."""
+    global media_library
+    audiobooks = []
+    try:
+        for album in localstorage.client.audiobooks(Path("assets/audiobooks")):
+            audiobook = AudioBook.from_path(album)
+            if audiobook:
+                audiobooks.append(audiobook)
+    except Exception as e:
+        logger.error(f"Error refreshing media library: {e}")
+    media_library["audiobooks"] = audiobooks
+    logger.info("Media library refreshed.")
 
-audio_books_models = list(audiobooks())
-audio_books = [
-    {
-        "id": album.id,
-        "artist": album.artist,
-        "title": album.album,
-        "disc": album.album_no,
-        "cover_uri": str(album.cover_relative) if album.cover else None,
-    }
-    for album in audio_books_models
-]
+def worker_process_uploads():
+    """Worker function to process uploads."""
+    while True:
+        item = upload_queue.get()
+        if item is None:
+            break
+        tonie_id, audiobook_id = item
+        try:
+            transcoding_status[audiobook_id] = "Uploading"
+            upload = Upload.from_ids(tonie=tonie_id, audiobook=audiobook_id)
+            status = tonie_cloud_api.put_album_on_tonie(upload.audiobook, upload.tonie)
+            transcoding_status[audiobook_id] = "Completed" if status else "Failed"
+        except Exception as e:
+            logger.error(f"Error uploading: {e}")
+            transcoding_status[audiobook_id] = "Error"
+        finally:
+            upload_queue.task_done()
 
-creative_tonies = tonie_cloud_api.creativetonies()
+upload_worker = Thread(target=worker_process_uploads, daemon=True)
+upload_worker.start()
 
+### Endpoints
+@app.route("/refresh-library", methods=["POST"])
+def refresh_library():
+    """Trigger a library refresh."""
+    Thread(target=refresh_media_library, daemon=True).start()
+    return jsonify({"status": "success", "message": "Media library refresh started."})
 
+@app.route("/audiobooks", methods=["GET"])
+def all_audiobooks():
+    """Fetch the current media library."""
+    audiobooks = [
+        {
+            "id": album.id,
+            "artist": album.artist,
+            "title": album.album,
+            "disc": album.album_no,
+            "cover_uri": str(album.cover_relative) if album.cover else None,
+        }
+        for album in media_library["audiobooks"]
+    ]
+    
+    return jsonify({"status": "success", "audiobooks": audiobooks})
+
+    
+    
 @app.route("/ping", methods=["GET"])
 def ping_pong():
     return jsonify("pong!")
 
 
-@app.route("/audiobooks", methods=["GET"])
-def all_audiobooks():
-    return jsonify({"status": "success", "audiobooks": audio_books,})
-
-
 @app.route("/creativetonies", methods=["GET"])
 def all_creativetonies():
-    return jsonify({"status": "success", "creativetonies": creative_tonies,})
-
+    """Fetch the list of creative Tonies."""
+    global creative_tonies
+    try:
+        creative_tonies = tonie_cloud_api.creativetonies()
+    except Exception as e:
+        logger.error(f"Error refreshing Tonies: {e}")
+    return jsonify({"status": "success", "creativetonies": creative_tonies})
+        
 @app.route("/download-audiobook", methods=["POST"])
 def download_audiobook():
     """
@@ -148,9 +187,27 @@ def download_audiobook():
         }), 201
 
     except Exception as e:
-        logger.error(f"Error downloading audiobook: {e}")
-        return jsonify({"status": "failure", "message": str(e)}), 500
-    
+        logger.error(f"Error refreshing Tonies: {e}")
+    return jsonify({"status": "success", "creativetonies": creative_tonies})
+
+@app.route("/upload", methods=["POST"])
+def upload_album_to_tonie():
+    """Queue an upload task."""
+    body = request.json
+    tonie_id = body.get("tonie_id")
+    audiobook_id = body.get("audiobook_id")
+    if not tonie_id or not audiobook_id:
+        return jsonify({"status": "failure", "message": "Missing 'tonie_id' or 'audiobook_id'"}), 400
+    upload_queue.put((tonie_id, audiobook_id))
+    transcoding_status[audiobook_id] = "Queued"
+    return jsonify({"status": "success", "message": "Upload queued."}), 202
+
+@app.route("/upload-status/<audiobook_id>", methods=["GET"])
+def upload_status(audiobook_id):
+    """Fetch the upload/transcoding status of a specific audiobook."""
+    status = transcoding_status.get(audiobook_id, "Unknown")
+    return jsonify({"status": status})
+
 def sanitize_filename(filename):
     return sub(r'[<>:"/\\|?*]', '', filename)
 
@@ -193,7 +250,8 @@ def update_mp3_metadata(file_path: Path, metadata: dict, cover_path: str = None)
         logger.info(f"Updated metadata for {file_path}: {metadata}")
     except Exception as e:
         logger.error(f"Failed to save metadata for {file_path}: {e}")
-        
+
+
 @app.route("/upload-cover", methods=["POST"])
 def upload_cover():
     if "cover" not in request.files:
@@ -208,6 +266,9 @@ def upload_cover():
 
     return jsonify({"status": "success", "cover_path": str(cover_path)}), 201
 
+
+
+### Helper Functions
 @dataclass
 class Upload:
     tonie: Tonie
@@ -217,19 +278,23 @@ class Upload:
     def from_ids(cls, tonie: str, audiobook: str) -> "Upload":
         return cls(
             next(filter(lambda t: t.id == tonie, creative_tonies), None),
-            next(filter(lambda a: a.id == audiobook, audio_books_models), None),
+            next(filter(lambda a: a.id == audiobook, media_library["audiobooks"]), None),
         )
 
+### Auto-refresh Tonies
+def refresh_creative_tonies():
+    while True:
+        try:
+            global creative_tonies
+            creative_tonies = tonie_cloud_api.creativetonies()
+        except Exception as e:
+            logger.error(f"Error refreshing Tonies: {e}")
+        sleep(300)  # Refresh every 5 minutes
 
-@app.route("/upload", methods=["POST"])
-def upload_album_to_tonie():
-    body = request.json
-    upload = Upload.from_ids(tonie=body["tonie_id"], audiobook=body["audiobook_id"])
-    logger.debug(f"Created upload object: {upload}")
+tonie_worker = Thread(target=refresh_creative_tonies, daemon=True)
+tonie_worker.start()
 
-    status = tonie_cloud_api.put_album_on_tonie(upload.audiobook, upload.tonie)
-    return jsonify({"status": "success" if status else "failure", "upload_id": str(upload)}), 201
-
-
+### Run Server
 if __name__ == "__main__":
+    refresh_media_library()  # Initial load
     app.run(host="0.0.0.0")
