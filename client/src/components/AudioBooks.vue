@@ -2,6 +2,67 @@
   <main role="main">
     <div class="album py-5 bg-light">
       <div class="container">
+        <h2 class="mb-4">Download a New Audiobook</h2>
+        <form @submit.prevent="downloadAudiobook">
+          <div class="form-group">
+            <label for="url">YouTube URL</label>
+            <input
+              type="text"
+              id="url"
+              class="form-control"
+              v-model="newAudiobook.url"
+              placeholder="Enter YouTube URL"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="title">Title</label>
+            <input
+              type="text"
+              id="title"
+              class="form-control"
+              v-model="newAudiobook.title"
+              placeholder="Enter Title"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="artist">Artist</label>
+            <input
+              type="text"
+              id="artist"
+              class="form-control"
+              v-model="newAudiobook.artist"
+              placeholder="Enter Artist"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="album">Album</label>
+            <input
+              type="text"
+              id="album"
+              class="form-control"
+              v-model="newAudiobook.album"
+              placeholder="Enter Album"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="cover">Cover Image</label>
+            <input
+              type="file"
+              id="cover"
+              class="form-control"
+              @change="onFileChange"
+            />
+          </div>
+          <button type="submit" class="btn btn-primary">Download Audiobook</button>
+        </form>
+
+        <hr />
+
+        <h2 class="mb-4">Available Audiobooks</h2>
         <div class="row">
           <div v-for="audiobook in audiobooks" :key="audiobook.id" class="col-md-3">
             <div class="card mb-4 shadow-sm">
@@ -30,9 +91,6 @@
                       :audiobookID="audiobook.id"
                       @onchange="uploadAlbumToTonie"/>
             </div>
-            <!--            <div class="d-flex justify-content-between align-items-center">-->
-            <!--              <small class="text-muted">35 mins</small>-->
-            <!--            </div>-->
           </div>
         </div>
       </div>
@@ -46,50 +104,29 @@ import Tonies from './Tonies.vue';
 
 const backendUrl = `${process.env.VUE_APP_BACKEND_SCHEME}://${process.env.VUE_APP_BACKEND_HOST}:${process.env.VUE_APP_BACKEND_PORT}`;
 
-function cmp(a, b) {
-  if (!a && !b) {
-    return 0;
-  }
-  if (!a) {
-    return 1;
-  }
-  if (!b) {
-    return -1;
-  }
-
-  if (typeof a === 'string') {
-    return a.localeCompare(b);
-  }
-
-  if (a < b) {
-    return -1;
-  }
-  return a > b ? 1 : 0;
-}
-
 export default {
   components: { Tonies },
   data() {
     return {
       audiobooks: [],
       creativetonies: [],
+      newAudiobook: {
+        url: '',
+        title: '',
+        artist: '',
+        album: '',
+        coverFile: null,
+      },
     };
   },
-  cmp,
   methods: {
-    cmpAudioBooks(lhs, rhs) {
-      return cmp(lhs.artist, rhs.artist)
-        || cmp(lhs.disc, rhs.disc)
-        || cmp(lhs.title, rhs.title);
-    },
     getAudiobooks() {
       const path = `${backendUrl}/audiobooks`;
       axios.get(path)
         .then((res) => {
-          this.audiobooks = res.data.audiobooks.sort(this.cmpAudioBooks);
+          this.audiobooks = res.data.audiobooks;
         })
         .catch((error) => {
-          // eslint-disable-next-line
           console.error(error);
         });
     },
@@ -100,7 +137,6 @@ export default {
           this.creativetonies = res.data.creativetonies;
         })
         .catch((error) => {
-          // eslint-disable-next-line
           console.error(error);
         });
     },
@@ -108,12 +144,49 @@ export default {
       const path = `${backendUrl}/upload`;
       axios.post(path, { tonie_id: tonieID, audiobook_id: audiobookID })
         .then((res) => {
-          // eslint-disable-next-line
           console.log('Upload id: ' + res.data.upload_id);
         })
         .catch((error) => {
-          // eslint-disable-next-line
           console.error(error);
+        });
+    },
+    onFileChange(event) {
+      this.newAudiobook.coverFile = event.target.files[0];
+    },
+    async uploadCover() {
+      if (this.newAudiobook.coverFile) {
+        const formData = new FormData();
+        formData.append('cover', this.newAudiobook.coverFile);
+        const path = `${backendUrl}/upload-cover`;
+
+        try {
+          const res = await axios.post(path, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          return res.data.cover_path;
+        } catch (error) {
+          console.error('Error uploading cover:', error);
+        }
+      }
+      return null;
+    },
+    async downloadAudiobook() {
+      const coverPath = await this.uploadCover();
+      const path = `${backendUrl}/download-audiobook`;
+
+      axios.post(path, {
+        url: this.newAudiobook.url,
+        title: this.newAudiobook.title,
+        artist: this.newAudiobook.artist,
+        album: this.newAudiobook.album,
+        cover_path: coverPath,
+      })
+        .then((res) => {
+          console.log('Audiobook downloaded:', res.data);
+          this.getAudiobooks(); // Refresh audiobooks
+        })
+        .catch((error) => {
+          console.error('Error downloading audiobook:', error);
         });
     },
   },

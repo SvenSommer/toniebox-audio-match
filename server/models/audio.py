@@ -37,7 +37,13 @@ class AudioBook:
         if not self.cover:
             return
 
-        return self.cover.relative_to(self.covers)
+        try:
+            relative_path = str(self.cover.relative_to(self.covers))
+            logger.debug(f"Generated relative cover path: {relative_path}")
+            return relative_path
+        except ValueError:
+            logger.error(f"Cover path {self.cover} is not relative to {self.covers}")
+            return None
 
     @classmethod
     def from_path(cls, album: Path) -> Optional["AudioBook"]:
@@ -77,21 +83,26 @@ class AudioBook:
     @classmethod
     def cover_path_for(cls, id: str) -> Path:
         return cls.covers.joinpath(id)
-
+    
     @staticmethod
     def persist_cover(file: Path, image: Optional[bytes]) -> Optional[Path]:
         if not image:
-            return
+            logger.warning("No image data to persist.")
+            return None
 
         image_stream = BytesIO(image)
         image_type = imghdr.what(image_stream)
 
         if not image_type:
             logger.error("Could not determine image type for file: %s", file)
-            return
+            return None
 
+        # Ensure the parent directory exists
         file = file.with_suffix(f".{image_type}")
+        file.parent.mkdir(parents=True, exist_ok=True)
+
         with file.open("wb") as ch:
             ch.write(image)
 
+        logger.info(f"Cover saved at: {file}")
         return file

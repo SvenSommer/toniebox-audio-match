@@ -20,7 +20,9 @@ services:
       - ./albumart/:/frontend/public/assets/covers
 
   backend:
-    image: python:3.8-buster
+    build:
+      context: ./server
+      dockerfile: Dockerfile
     environment:
       - TONIE_AUDIO_MATCH_MEDIA_PATH
       - TONIE_AUDIO_MATCH_USER

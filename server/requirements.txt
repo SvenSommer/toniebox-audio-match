@@ -2,3 +2,7 @@ Flask ~= 1.1.2
 Flask-Cors ~= 3.0.8
 requests ~= 2.25.1
 tinytag ~= 1.5.0
+MarkupSafe == 2.0.1
+yt-dlp
+mutagen ~= 1.45.1
+eyed3 ~= 0.9.6

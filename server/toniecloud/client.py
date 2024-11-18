@@ -51,10 +51,20 @@ class TonieCloud:
         return tonies
 
     def put_album_on_tonie(self, audiobook: AudioBook, tonie: Tonie) -> bool:
+        """
+        Upload an album to a Tonie.
+        """
+        # Corrected sorting logic to handle numeric track ordering
         data = {
             "chapters": [
-                {"title": track.title, "file": self._upload_track(track)}
-                for track in sorted(audiobook.tracks, key=lambda t: t.track)
+                {
+                    "title": track.title or "Unknown Title",
+                    "file": self._upload_track(track)
+                }
+                for track in sorted(
+                    audiobook.tracks,
+                    key=lambda t: int(t.track) if t.track and t.track.isdigit() else (t.track or "")
+                )
             ]
         }
 
@@ -82,7 +92,7 @@ class TonieCloud:
 
     def _upload_file(self, file: Path) -> str:
         data = self.session.post(f"{self.url}/file", headers=self.auth_header).json()
-        logger.debug("Response of POST /file: %r", data)
+        #logger.debug("Response of POST /file: %r", data)
 
         payload = data["request"]["fields"]
 
